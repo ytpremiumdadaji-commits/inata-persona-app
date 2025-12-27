@@ -2,58 +2,136 @@
 import { useState } from 'react';
 
 export default function Home() {
-  const [url, setUrl] = useState('');
+  const [username, setUsername] = useState(''); // Link ki jagah ab hum username lenge
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
   const handleAnalyze = async () => {
+    if (!username) return alert("Please enter a username");
+
     setLoading(true);
+    setError(null);
+    setResult(null);
+
     try {
-      const response = await fetch('https://YOUR-RENDER-BACKEND-URL.com/analyze', {
+      // 1. Environment variable se Backend URL uthana
+      const backendBaseUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+      
+      if (!backendBaseUrl) {
+        throw new Error("Backend URL is not configured in environment variables");
+      }
+
+      const response = await fetch(`${backendBaseUrl}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile_url: url })
+        body: JSON.stringify({ 
+          username: username.replace('@', '').trim() // @ handle karne ke liye logic
+        })
       });
+
       const data = await response.json();
-      setResult(data);
-    } catch (error) {
-      alert("Error analyzing profile");
+
+      if (data.success) {
+        setResult(data.data); // Backend ke 'data' object ko set kar rahe hain
+      } else {
+        setError(data.detail || "Analysis failed. Please check if the profile is public.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Server connection error. Make sure your Render backend is awake!");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col items-center p-8">
-      <h1 className="text-4xl font-bold text-pink-600 mb-4">InstaPersona AI</h1>
-      <p className="text-gray-600 mb-8">Get AI insights from any public Instagram profile</p>
-      
-      <div className="flex gap-2 w-full max-w-md">
+    <main className="min-h-screen bg-slate-50 flex flex-col items-center p-6 md:p-12 font-sans text-slate-900">
+      {/* Hero Section */}
+      <div className="text-center mb-12">
+        <h1 className="text-5xl font-extrabold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-4">
+          InstaPersona AI
+        </h1>
+        <p className="text-slate-600 text-lg">
+          Discover personality insights using Ethical AI
+        </p>
+      </div>
+
+      {/* Input Box */}
+      <div className="w-full max-w-lg bg-white shadow-2xl rounded-2xl p-2 flex border border-slate-200">
         <input 
-          className="border p-2 rounded w-full text-black"
-          placeholder="https://instagram.com/username"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          className="flex-grow p-4 bg-transparent outline-none text-lg"
+          placeholder="Enter username (e.g. virat.kohli)"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
         />
         <button 
           onClick={handleAnalyze}
           disabled={loading}
-          className="bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700 disabled:bg-gray-400"
+          className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-8 py-4 rounded-xl font-bold hover:scale-105 transition-all active:scale-95 disabled:opacity-50"
         >
           {loading ? "Analyzing..." : "Analyze"}
         </button>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="mt-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {/* Analysis Result Card */}
       {result && (
-        <div className="mt-10 p-6 bg-white rounded-lg shadow-xl max-w-2xl w-full">
-          <div className="flex items-center gap-4 mb-4">
-            <img src={result.profile_pic} className="w-16 h-16 rounded-full border-2 border-pink-500" alt="profile" />
-            <h2 className="text-2xl font-semibold text-black">{result.full_name} (@{result.username})</h2>
+        <div className="mt-12 w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Profile Header */}
+          <div className="bg-gradient-to-r from-pink-500/10 to-purple-600/10 p-8 flex items-center gap-6 border-b border-slate-100">
+            <img 
+              src={result.profile_pic || 'https://www.gravatar.com/avatar/000?d=mp'} 
+              className="w-24 h-24 rounded-full border-4 border-white shadow-xl object-cover" 
+              alt="profile" 
+            />
+            <div>
+              <h2 className="text-3xl font-bold text-slate-800">{result.name}</h2>
+              <p className="text-pink-600 font-medium">@{result.username}</p>
+              <div className="flex gap-4 mt-2 text-sm text-slate-500 font-semibold">
+                <span>{result.followers.toLocaleString()} Followers</span>
+              </div>
+            </div>
           </div>
-          <div className="prose text-gray-700 whitespace-pre-wrap">
-            {result.analysis}
+
+          {/* Analysis Content */}
+          <div className="p-8">
+            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+              ✨ Personality Report
+            </h3>
+            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100">
+              <div className="prose text-slate-700 whitespace-pre-wrap leading-relaxed text-lg italic">
+                {result.personality_report}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="mt-8 flex justify-between items-center text-sm">
+              <span className="text-slate-400">Generated by InstaPersona AI</span>
+              <button 
+                onClick={() => window.print()}
+                className="text-purple-600 font-bold hover:underline"
+              >
+                Print Report
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Privacy Notice */}
+      <footer className="mt-auto pt-12 text-slate-400 text-xs text-center">
+        We do not store passwords. Only public data is analyzed.<br/>
+        &copy; 2024 InstaPersona SaaS
+      </footer>
     </main>
   );
 }
+
